@@ -987,7 +987,7 @@ defmodule Ecto.Adapters.SQL do
 
     opts =
       if is_nil(Keyword.get(opts, :cache_statement)) do
-        [{:cache_statement, "ecto_insert_all_#{source}"} | opts]
+        [{:cache_statement, cache_statement_name("ecto_insert_all_", source)} | opts]
       else
         opts
       end
@@ -1186,7 +1186,8 @@ defmodule Ecto.Adapters.SQL do
       ) do
     opts =
       if is_nil(Keyword.get(opts, :cache_statement)) do
-        [{:cache_statement, "ecto_#{operation}_#{source}_#{length(params)}"} | opts]
+        name = cache_statement_name("ecto_#{operation}_", source, "_#{length(params)}")
+        [{:cache_statement, name} | opts]
       else
         opts
       end
@@ -1213,6 +1214,18 @@ defmodule Ecto.Adapters.SQL do
           [] -> raise_sql_call_error(err)
           constraints -> {:invalid, constraints}
         end
+    end
+  end
+
+  # Fit PostgreSQL's default 63-byte limit so the client and server agree on
+  # their cache keys.
+  defp cache_statement_name(prefix, source, suffix \\ "") do
+    name = "#{prefix}#{source}#{suffix}"
+
+    if byte_size(name) <= 63 do
+      name
+    else
+      prefix <> Integer.to_string(:erlang.phash2(name)) <> suffix
     end
   end
 
