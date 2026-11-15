@@ -1220,14 +1220,26 @@ defmodule Ecto.Adapters.SQL do
   # Fit PostgreSQL's default 63-byte limit so the client and server agree on
   # their cache keys.
   defp cache_statement_name(prefix, source, suffix \\ "") do
-    name = "#{prefix}#{source}#{suffix}"
+    source = to_string(source)
+    name = prefix <> source <> suffix
 
     if byte_size(name) <= 63 do
       name
     else
-      prefix <> Integer.to_string(:erlang.phash2(name)) <> suffix
+      hash = Integer.to_string(:erlang.phash2(name))
+      budget = 63 - byte_size(prefix <> hash <> suffix)
+      prefix <> ascii_prefix(source, budget) <> hash <> suffix
     end
   end
+
+  defp ascii_prefix(_, 0), do: ""
+  defp ascii_prefix(<<>>, _), do: ""
+
+  defp ascii_prefix(<<byte, rest::binary>>, size) when byte < 128 do
+    <<byte, ascii_prefix(rest, size - 1)::binary>>
+  end
+
+  defp ascii_prefix(<<_, rest::binary>>, size), do: ascii_prefix(rest, size)
 
   ## Transactions
 

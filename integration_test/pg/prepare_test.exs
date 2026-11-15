@@ -41,10 +41,14 @@ defmodule Ecto.Integration.PrepareTest do
 
     assert values(first) == [[1], [3]]
     assert values(second) == [[2], [4]]
+
+    assert [[name]] = statement_names(first)
+    assert name =~ ~r/^ecto_insert_prepare_test_x+[0-9]+_0$/
+    assert byte_size(name) == 63
   end
 
   test "bulk inserts with multibyte source names write to the intended table" do
-    prefix = String.duplicate("é", 25) <> "x"
+    prefix = String.duplicate("é", 24) <> "xé"
     first = prefix <> "_a"
     second = prefix <> "_b"
     create_table(first)
@@ -57,6 +61,21 @@ defmodule Ecto.Integration.PrepareTest do
 
     assert values(first) == [[1], [3]]
     assert values(second) == [[2], [4]]
+
+    assert [[name]] = statement_names(first)
+    assert name =~ ~r/^ecto_insert_all_x_a[0-9]+$/
+    assert byte_size(name) <= 63
+  end
+
+  test "long sources without ASCII bytes use only a hash" do
+    source = String.duplicate("é", 30)
+    create_table(source)
+    insert_item!(source, 1)
+
+    assert [[name]] = statement_names(source)
+    assert name =~ ~r/^ecto_insert_[0-9]+_0$/
+    assert byte_size(name) <= 63
+    assert values(source) == [[1]]
   end
 
   test "preserves names at the limit and explicit cache options" do
